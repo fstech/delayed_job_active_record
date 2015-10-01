@@ -67,21 +67,8 @@ module Delayed
             subquery_sql      = ready_scope.limit(1).lock(true).select("id").to_sql
             reserved          = find_by_sql(["UPDATE #{quoted_table_name} SET locked_at = ?, locked_by = ? WHERE id IN (#{subquery_sql}) RETURNING *", now, worker.name])
             reserved[0]
-          when "MySQL", "Mysql2"
-            # Removing the millisecond precision from now(time object)
-            # MySQL 5.6.4 onwards millisecond precision exists, but the
-            # datetime object created doesn't have precision, so discarded
-            # while updating. But during the where clause, for mysql(>=5.6.4),
-            # it queries with precision as well. So removing the precision
-            now = now.change(usec: 0)
-            # This works on MySQL and possibly some other DBs that support
-            # UPDATE...LIMIT. It uses separate queries to lock and return the job
-            count = ready_scope.limit(1).update_all(locked_at: now, locked_by: worker.name)
-            return nil if count == 0
-            where(locked_at: now, locked_by: worker.name, failed_at: nil).first
           when "MSSQL", "Teradata"
-            # The MSSQL driver doesn't generate a limit clause when update_all
-            # is called directly
+            # The MSSQL driver doesn't generate a limit clause when update_all is called directly
             subsubquery_sql = ready_scope.limit(1).to_sql
             # select("id") doesn't generate a subquery, so force a subquery
             subquery_sql = "SELECT id FROM (#{subsubquery_sql}) AS x"
@@ -98,8 +85,9 @@ module Delayed
 
         def self.reserve_with_scope_using_default_sql(ready_scope, worker, now)
           # This is our old fashion, tried and true, but slower lookup
-          ready_scope.limit(worker.read_ahead).detect do |job|
-            count = ready_scope.where(id: job.id).update_all(locked_at: now, locked_by: worker.name)
+          bad_sql = ready_scope.select("id").limit(worker.read_ahead).to_sql
+          joins("JOIN (#{bad_sql}) ids ON ids.id = delayed_jobs.id").readonly(false).detect do |job|
+            count = ready_scope.where(:id => job.id).update_all(:locked_at => now, :locked_by => worker.name)
             count == 1 && job.reload
           end
         end
