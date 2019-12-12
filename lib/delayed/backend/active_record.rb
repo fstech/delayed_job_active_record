@@ -1,4 +1,6 @@
 require "active_record/version"
+require "securerandom"
+
 module Delayed
   module Backend
     module ActiveRecord
@@ -70,6 +72,12 @@ module Delayed
             subquery_sql      = ready_scope.limit(1).lock(true).select("id").to_sql
             reserved          = find_by_sql(["UPDATE #{quoted_table_name} SET locked_at = ?, locked_by = ? WHERE id IN (#{subquery_sql}) RETURNING *", now, worker.name])
             reserved[0]
+          when 'MySQL', 'Mysql2'
+            # This works on MySQL and possibly some other DBs that support UPDATE...LIMIT. It uses separate queries to lock and return the job
+            lock_name = SecureRandom.hex(16)
+            count = ready_scope.limit(1).update_all(:locked_at => now, :locked_by => lock_name)
+            return nil if count == 0
+            where(:locked_by => lock_name, :locked_at => now, :failed_at => nil).first
           when "MSSQL", "Teradata"
             # The MSSQL driver doesn't generate a limit clause when update_all is called directly
             subsubquery_sql = ready_scope.limit(1).to_sql
