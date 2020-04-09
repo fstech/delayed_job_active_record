@@ -16,6 +16,7 @@ class CreateDelayedJobs < ActiveRecord::Migration
     add_index :delayed_jobs, [:failed_at, :run_at, :locked_at, :queue], name: "ready_delayed_jobs_queue_last"
     add_index :delayed_jobs, [:queue, :failed_at, :run_at, :locked_at], name: "ready_delayed_jobs_queue_first"
     add_index :delayed_jobs, [:locked_by, :locked_at], name: "delayed_jobs_after_reserve_select"
+    add_index :delayed_jobs, [:priority, :run_at], name: "delayed_jobs_priority"
   end
 
   def self.down

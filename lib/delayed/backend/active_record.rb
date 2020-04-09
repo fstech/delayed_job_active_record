@@ -14,7 +14,7 @@ module Delayed
                           :failed_at, :locked_at, :locked_by, :handler
         end
 
-        scope :by_priority, lambda { order('run_at ASC') }
+        scope :by_priority, lambda { order('priority ASC, run_at ASC') }
 
         before_save :set_default_run_at
 
@@ -54,6 +54,11 @@ module Delayed
               ready_scope = ready_scope.where(:queue => Delayed::Worker.queues)
             end
           end
+
+          ready_scope = ready_scope.where('priority >= ?', Worker.min_priority) if Worker.min_priority
+          ready_scope = ready_scope.where('priority <= ?', Worker.max_priority) if Worker.max_priority
+          ready_scope = ready_scope.where(:queue => Worker.queues) if Worker.queues.any?
+          ready_scope = ready_scope.by_priority
 
           reserve_with_scope(ready_scope, worker, db_time_now)
         end
