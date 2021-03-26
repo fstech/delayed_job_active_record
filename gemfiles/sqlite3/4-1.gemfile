@@ -11,7 +11,7 @@ group :test do
   gem "simplecov", ">= 0.17.0", require: false
   gem "simplecov-lcov", "< 0.8.0", require: false
 
-  gem "activerecord", "~> 3.2.0"
+  gem "activerecord", "~> 4.1.0"
 end
 
 gemspec path: "../../"
